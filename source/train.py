@@ -1,38 +1,25 @@
 import torch
-import random 
-import numpy as np
-from torch import nn
-import torchinfo
-import tensorflow as tf
-from tensorboard.plugins.hparams import api as hp
-# from torch.utils.tensorboard import SummaryWriter
-from utils.save_logs import CustomSummaryWriter 
+
+from models.encoder import EncoderTCN
+from models.decoder import DecoderTCN
+from utilities.training import train
+from utilities.evaluate import evaluate
+from torch.utils.data import  random_split, DataLoader
+from utilities.dataset import AudioDataset
+from utilities.metrics import spectral_distance
+from utils.config import load_params
 import os
-from dvclive import Live
+import socket
+import time
+import random
+import numpy as np
+import shutil
+from tensorboard.plugins.hparams import api as hp
+from utils.save_logs import CustomSummaryWriter
+import os
 from utils.config import load_params
 from utils.config import flatten_dict
 from utils.save_logs import copy_tensorboard_log
-from model import NeuralNetwork
-# import time
-# import socket
-
-def get_train_mode_params(train_mode):
-    if train_mode == 0:
-        learning_rate = 0.01
-        conv1d_strides = 12
-        conv1d_filters = 16
-        hidden_units = 36
-    elif train_mode == 1:
-        learning_rate = 0.01
-        conv1d_strides = 4
-        conv1d_filters = 36
-        hidden_units = 64
-    else:
-        learning_rate = 0.0005
-        conv1d_strides = 3
-        conv1d_filters = 36
-        hidden_units = 96
-    return learning_rate, conv1d_strides, conv1d_filters, hidden_units
 
 def prepare_device(request):
     if request == "mps":
@@ -54,44 +41,7 @@ def prepare_device(request):
         print("Using CPU device")
     return device
 
-
-def train_epoch(dataloader, model, loss_fn, optimizer, device, live, writer, epoch):
-    size = len(dataloader.dataset)
-    num_batches = len(dataloader)
-    train_loss = 0 
-    model.train()
-    for batch, (X, y) in enumerate(dataloader):
-        X, y = X.to(device), y.to(device)
-        pred = model(X)
-        loss = loss_fn(pred, y)
-        loss.backward()
-        optimizer.step()
-        optimizer.zero_grad()
-        writer.add_scalar("Step_Loss/train", loss.item(), batch + epoch * len(dataloader))
-        train_loss += loss.item()
-        if batch % 100 == 0:
-            loss_value = loss.item()
-            current = (batch + 1) * len(X)
-            print(f"loss: {loss_value:>7f}  [{current:>5d}/{size:>5d}]")
-            live.log_metric("train: mse loss", loss_value)
-            live.next_step() 
-    train_loss /=  num_batches
-    return train_loss
-    
-
-def test_epoch(dataloader, model, loss_fn, device, writer):
-    num_batches = len(dataloader)
-    model.eval()
-    test_loss = 0
-    with torch.no_grad():
-        for X, y in dataloader:
-            X, y = X.to(device), y.to(device)
-            pred = model(X)
-            test_loss += loss_fn(pred, y).item()
-    test_loss /= num_batches
-    print(f"Test Error: \n Avg loss: {test_loss:>8f} \n")
-    return test_loss
-
+# Main
 def main():
     # Get the path to the tensorboard directory
     tustu_logs_path = os.environ.get('TUSTU_LOGS_PATH')
@@ -109,29 +59,32 @@ def main():
     if not os.path.exists(tensorboard_path):
         os.makedirs(tensorboard_path)
 
-    # Get the hostname and the current time to identify the tensorboard log file to copy to experiment branch
-    # hostname = socket.gethostname()
-    # time_now = time.time()
-
     # Create a SummaryWriter object to write the tensorboard logs
     writer = CustomSummaryWriter(log_dir=tensorboard_path)
 
     # Load the parameters from the config file
     params = load_params()
-    input_file = params.train.input_file
-    name = params.train.name
-    epochs = params.train.epochs
-    train_mode = params.train.train_mode
-    batch_size = params.train.batch_size
-    input_size = params.preprocess.input_size
-    random_seed = params.general.random_seed
-    device_request = params.train.device
 
-    metrics = {'Epoch_Loss/train': None, 'Epoch_Loss/test': None}
-    # Add hyperparameters to the tensorboard logs
+    # Write params to tensorboard
+    metrics = {}
     params_dict = params.to_dict()
     params_dict = flatten_dict(params_dict)
     writer.add_hparams(hparam_dict=params_dict, metric_dict=metrics, run_name=tensorboard_path)
+
+    n_inputs = params.train.n_inputs # number of input channels, to use if not using the multiband decomposition
+    n_bands = params.train.n_bands # number of bands for the multband decomposition
+    latent_dim = params.train.latent_dim # Dimension of the latent space
+    n_epochs = params.train.n_epochs # number of epochs
+    batch_size= params.train.batch_size # batch size
+    kernel_size = params.train.kernel_size # kernel size
+    n_blocks = params.train.n_blocks # Number of Encoder and Decoder blocks
+    dilation_growth = params.train.dilation_growth # dilation growth
+    n_channels = params.train.n_channels # number of initial channels
+    lr = params.train.lr # learning rate
+    use_kl = params.train.use_kl # use kl divergence, That is to say, the latent space is a normal distribution
+    device_request = params.train.device
+    random_seed = params.general.random_seed # seed
+    input_file = params.train.input_file
 
     # Set random seed for reproducibility
     random.seed(random_seed)
@@ -140,54 +93,69 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(random_seed)
 
-    # Load preprocessed data
-    data = torch.load(input_file)
-    X_ordered_training = data['X_ordered_training']
-    y_ordered_training = data['y_ordered_training']
-    X_ordered_testing = data['X_ordered_testing']
-    y_ordered_testing = data['y_ordered_testing']
-
     device = prepare_device(device_request)
 
-    if not os.path.exists('models/checkpoints/'):
-        os.makedirs('models/checkpoints/')
+    # Build the model
+    encoder = EncoderTCN(
+        n_inputs=n_bands,
+        kernel_size=kernel_size, 
+        n_blocks=n_blocks, 
+        dilation_growth=dilation_growth, 
+        n_channels=n_channels,
+        latent_dim=latent_dim,
+        use_kl=use_kl)
+    
+    decoder = DecoderTCN(
+        n_outputs=n_bands,
+        kernel_size=kernel_size,
+        n_blocks=n_blocks, 
+        dilation_growth=dilation_growth, 
+        n_channels=n_channels,
+        latent_dim=latent_dim,
+        use_kl=use_kl)
+    
+    # setup loss function, optimizer, and scheduler
+    criterion = spectral_distance
 
-    learning_rate, conv1d_strides, conv1d_filters, hidden_units = get_train_mode_params(train_mode)
+    # Setup optimizer
+    params = list(encoder.parameters())
+    params += list(decoder.parameters())
+    optimizer = torch.optim.Adam(params, lr, (0.5, 0.9))
 
-    model = NeuralNetwork(conv1d_filters, conv1d_strides, hidden_units).to(device)
-    summary = torchinfo.summary(model, (1, 1, input_size), device=device)
-    print(summary)
-    sample_inputs = torch.randn(1, 1, input_size) 
-    writer.add_graph(model, sample_inputs.to(device))
+    # Create the dataset
+    full_dataset = AudioDataset(input_file, apply_augmentations=False)
 
-    loss_fn = nn.MSELoss(reduction='mean')
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    # Define the sizes of your splits
+    total_size = len(full_dataset)
+    train_size = int(0.7 * total_size)
+    val_size = int(0.15 * total_size)
+    test_size = total_size - train_size - val_size
 
-    training_dataset = torch.utils.data.TensorDataset(X_ordered_training, y_ordered_training)
-    training_dataloader = torch.utils.data.DataLoader(training_dataset, batch_size=batch_size, shuffle=True)
-    testing_dataset = torch.utils.data.TensorDataset(X_ordered_testing, y_ordered_testing)
-    testing_dataloader = torch.utils.data.DataLoader(testing_dataset, batch_size=batch_size, shuffle=False)
+    # Get the sample rate
+    sample_rate = full_dataset.get_sample_rate()
 
-    live = Live()  
+    # Create the splits
+    train_dataset, val_dataset, test_dataset = random_split(
+        full_dataset, [train_size, val_size, test_size],
+        generator=torch.Generator().manual_seed(random_seed)
+    )
 
-    for t in range(epochs):
-        print(f"Epoch {t+1}\n-------------------------------")
-        epoch_loss_train = train_epoch(training_dataloader, model, loss_fn, optimizer, device, live, writer, epoch=t)
-        epoch_loss_test = test_epoch(testing_dataloader, model, loss_fn, device, writer)
-        writer.add_scalar("Epoch_Loss/train", epoch_loss_train, t)
-        writer.add_scalar("Epoch_Loss/test", epoch_loss_test, t)
-        # live.next_step()  # Indicate the end of an epoch
+    # Create the DataLoaders
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
+    # Train the model
+    train(encoder, decoder, train_loader, val_loader, criterion, optimizer, tensorboard_writer=writer, num_epochs=n_epochs, device= device, n_bands=n_bands, use_kl=use_kl, sample_rate=sample_rate)
+
+    # Evaluate the model
+    evaluate(encoder, decoder, test_loader, criterion, writer, device, n_bands, use_kl, sample_rate)
+
+    if not os.path.exists('exp-logs/'):
+        os.makedirs('exp-logs/')
 
     writer.close()
-
-    # Save the model
-    torch.save(model.state_dict(), "models/checkpoints/" + name + ".pth")
-    print("Saved PyTorch Model State to model.pth")
-
-    # Copy the tensorboard log file with the closest timestamp into the a directory with exp-name-logs
-    # copy_tensorboard_log(tensorboard_path, hostname, time_now)
     copy_tensorboard_log(tensorboard_path, experiment_name)
-
 
     print("Done!")
 

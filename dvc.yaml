@@ -1,51 +1,53 @@
 stages:
-  preprocess:
-    cmd: python3 source/preprocess.py
-    deps:
-    - source/preprocess.py
-    - data/raw/
-    params:
-    - preprocess.input_file
-    - preprocess.target_file
-    - preprocess.input_size
-    - preprocess.test_split
-    - preprocess.output_dir
-    outs:
-    - data/processed/
+  # preprocess:
+  #   cmd: python source/preprocess.py
+  #   deps:
+  #   - source/preprocess.py
+  #   - source/utilities/dataset.py
+  #   - data/raw/
+  #   params:
+  #   - preprocess.input_directory
+  #   - preprocess.dry_output_directory
+  #   - preprocess.short_output_directory
+  #   - preprocess.wet_output_directory
+  #   - preprocess.board_chunk_size
+  #   - preprocess.sliding_mean_length
+  #   - preprocess.noise_duration
+  #   - preprocess.num_noises
+  #   - preprocess.plate_reverb_path
+  #   - preprocess.model_batch_size
+  #   - train.input_size
+  #   - general.sample_rate
+  #   outs:
+  #   - data/processed/
   train:
-    cmd: python3 source/train.py
+    cmd: python source/train.py
     deps:
     - source/train.py
-    - source/model.py
+    - source/models/
+    - source/utilities/dataset.py
+    - source/utilities/metrics.py
+    - source/utilities/training.py
+    - source/utilities/evaluate.py
+    - source/utilities/ravepqmf.py
     - data/processed/
     params:
+    - general.random_seed
+    - general.sample_rate
+    - train.input_file
     - train.name
-    - train.batch_size
-    - train.epochs
-    - train.train_mode
+    - train.input_size
     - train.device
+    - train.n_inputs
+    - train.n_bands
+    - train.latent_dim
+    - train.n_epochs
+    - train.batch_size
+    - train.kernel_size
+    - train.n_blocks
+    - train.dilation_growth
+    - train.n_channels
+    - train.lr
+    - train.use_kl
     outs:
-    - models/checkpoints/
-    - dvclive/
-    - exp-logs/tensorboard/
-  export:
-    cmd: python3 source/export.py
-    deps:
-    - source/export.py
-    - models/checkpoints/
-    params:
-    - preprocess.input_size
-    - train.name
-    - train.train_mode
-    outs:
-    - models/exports/
-  save_logs:
-    cmd: python3 source/utils/save_logs.py
-    outs:
-    - exp-logs/slurm
-
-metrics:
-- dvclive/metrics.json
-plots:
-- dvclive/plots/metrics:
-    x: step
+    - exp-logs/

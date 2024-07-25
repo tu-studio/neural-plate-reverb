@@ -1,17 +1,31 @@
 general:
-  random_seed: 42
+  sample_rate: 44100
+  random_seed: 55
 preprocess:
-  input_file: '/../data/raw/ts9_test1_in_FP32.wav'
-  target_file: '/../data/raw/ts9_test1_out_FP32.wav'
-  input_size: 150
-  test_split: 0.2
-  output_dir: 'data/processed/'
-  file_name: 'processed_data.pt'
+  board_chunk_size: 1024
+  sliding_mean_length: 200
+  noise_duration: 5
+  num_noises: 100
+  plate_reverb_path: C:\Program Files\Common Files\VST3\Rev PLATE-140.vst3
+  input_directory: C:\Users\maxim\Documents\TUBerlin\TCN-VAE-pipeline\data\raw
+  dry_output_directory: C:\Users\maxim\Documents\TUBerlin\TCN-VAE-pipeline\data\dry
+  short_output_directory: C:\Users\maxim\Documents\TUBerlin\TCN-VAE-pipeline\data\short
+  wet_output_directory: C:\Users\maxim\Documents\TUBserlin\TCN-VAE-pipeline\data\wet
+  model_batch_size: 32
 train:
-  input_file: 'data/processed/processed_data.pt'
-  name: 'model'
-  batch_size: 4096 
-  epochs: 1
-  train_mode: 0 
-  device: 'cuda'   
+  input_file: data/processed/preprocessed_data.pt
+  name: model
+  input_size: 524288
+  device: cuda
+  n_inputs: 1
+  n_bands: 16
+  latent_dim: 128
+  n_epochs: 1
+  batch_size: 32
+  kernel_size: 13
+  n_blocks: 3
+  dilation_growth: 10
+  n_channels: 32
+  lr: 0.00001
+  use_kl: true
 
