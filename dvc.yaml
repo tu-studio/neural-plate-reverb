@@ -51,3 +51,7 @@ stages:
     - train.use_kl
     outs:
     - exp-logs/
+  save_logs:
+    cmd: python3 source/utils/save_logs.py
+    outs:
+    - exp-logs/slurm
