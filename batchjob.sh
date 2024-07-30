@@ -27,7 +27,7 @@ singularity pull docker://$TUSTU_DOCKERHUB_USERNAME/$TUSTU_PROJECT_NAME-image:la
 echo "Starting singularity execution..."
 
 # Run the singularity container
-DEFAULT_DIR="$PWD" singularity exec --nv ml-pipeline-image_latest.sif bash -c '    
+DEFAULT_DIR="$PWD" singularity exec --nv $TUSTU_PROJECT_NAME-image_latest.sif bash -c '    
   echo "Checking directory existence..."
   if [ ! -d "../$TUSTU_TEMP_PATH" ]; then
     mkdir -p "../$TUSTU_TEMP_PATH"
