@@ -21,7 +21,7 @@ stages:
   #   outs:
   #   - data/processed/
   train:
-    cmd: python source/train.py
+    cmd: python3 source/train.py
     deps:
     - source/train.py
     - source/models/
