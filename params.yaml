@@ -6,11 +6,11 @@ preprocess:
   sliding_mean_length: 200
   noise_duration: 5
   num_noises: 100
-  plate_reverb_path: C:\Program Files\Common Files\VST3\Rev PLATE-140.vst3
-  input_directory: C:\Users\maxim\Documents\TUBerlin\TCN-VAE-pipeline\data\raw
-  dry_output_directory: C:\Users\maxim\Documents\TUBerlin\TCN-VAE-pipeline\data\dry
-  short_output_directory: C:\Users\maxim\Documents\TUBerlin\TCN-VAE-pipeline\data\short
-  wet_output_directory: C:\Users\maxim\Documents\TUBserlin\TCN-VAE-pipeline\data\wet
+  plate_reverb_path: data/VST/Rev PLATE-140.vst3
+  input_directory: data/raw
+  dry_output_directory: data/dry
+  short_output_directory: data/short
+  wet_output_directory: data/wet
   model_batch_size: 32
 train:
   input_file: data/processed/preprocessed_data.pt
