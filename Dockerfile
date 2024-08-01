@@ -32,7 +32,7 @@ RUN wget --no-check-certificate https://www.python.org/ftp/python/3.12.4/Python-
     # Delete the unzipped directory and downloaded archive to save space
     && rm -rf Python-3.12.4 Python-3.12.4.tgz \
     # Create symlink for python3
-    && ln -s /usr/local/bin/python3.12 /usr/local/bin/python3
+    && ln -s /usr/local/bin/python3.12 /usr/local/bin/python3 \
     && ln -s /usr/local/bin/python3.12 /usr/local/bin/python
 
 # Set the working directory

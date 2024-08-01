@@ -1,25 +1,25 @@
 stages:
-  # preprocess:
-  #   cmd: python source/preprocess.py
-  #   deps:
-  #   - source/preprocess.py
-  #   - source/utilities/dataset.py
-  #   - data/raw/
-  #   params:
-  #   - preprocess.input_directory
-  #   - preprocess.dry_output_directory
-  #   - preprocess.short_output_directory
-  #   - preprocess.wet_output_directory
-  #   - preprocess.board_chunk_size
-  #   - preprocess.sliding_mean_length
-  #   - preprocess.noise_duration
-  #   - preprocess.num_noises
-  #   - preprocess.plate_reverb_path
-  #   - preprocess.model_batch_size
-  #   - train.input_size
-  #   - general.sample_rate
-  #   outs:
-  #   - data/processed/
+  preprocess:
+    cmd: python3 source/preprocess.py
+    deps:
+    - source/preprocess.py
+    - source/utilities/dataset.py
+    - data/raw/
+    params:
+    - preprocess.input_directory
+    - preprocess.dry_output_directory
+    - preprocess.short_output_directory
+    - preprocess.wet_output_directory
+    - preprocess.board_chunk_size
+    - preprocess.sliding_mean_length
+    - preprocess.noise_duration
+    - preprocess.num_noises
+    - preprocess.plate_reverb_path
+    - preprocess.model_batch_size
+    - train.input_size
+    - general.sample_rate
+    outs:
+    - data/processed/
   train:
     cmd: python3 source/train.py
     deps:

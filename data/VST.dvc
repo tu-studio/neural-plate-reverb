@@ -1,0 +1,6 @@
+outs:
+- md5: 5a5cd90402cf8cc2f98d5992f6a487c3.dir
+  size: 23987200
+  nfiles: 1
+  hash: md5
+  path: VST
