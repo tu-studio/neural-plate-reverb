@@ -4,4 +4,4 @@
     shared = group
     type = symlink
 ['remote "myremote"']
-    url = ssh://chef@marckh.ak.tu-berlin.de:/home/chef/Data-temp/neural-plate-reverb
+    url = ssh://chef@marckh.ak.tu-berlin.de:/home/chef/Data/neural-plate-reverb
