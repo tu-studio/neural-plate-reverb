@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:tesla:1
 #SBATCH --mem=100GB
-#SBATCH --time=1:00:00 
+#SBATCH --time=10:00:00 
 #SBATCH --partition=gpu
 #SBATCH --output=./logs/slurm/slurm-%j.out
 
@@ -16,6 +16,7 @@ module load singularity/4.0.2
 
 # Set environment variables defined in global.env
 export $(grep -v '^#' global.env | xargs)
+export DEFAULT_DIR="$PWD"
 
 # Remove the previous singularity image if it exists
 if [ -f $TUSTU_PROJECT_NAME-image_latest.sif ]; then
@@ -27,13 +28,13 @@ singularity pull docker://$TUSTU_DOCKERHUB_USERNAME/$TUSTU_PROJECT_NAME-image:la
 echo "Starting singularity execution..."
 
 # Run the singularity container
-DEFAULT_DIR="$PWD" singularity exec --nv $TUSTU_PROJECT_NAME-image_latest.sif bash -c '    
+singularity exec --nv --bind $DEFAULT_DIR $TUSTU_PROJECT_NAME-image_latest.sif bash -c '    
   echo "Checking directory existence..."
-  if [ ! -d "../$TUSTU_TEMP_PATH" ]; then
-    mkdir -p "../$TUSTU_TEMP_PATH"
-    echo "The directory ../$TUSTU_TEMP_PATH has been created."
+  if [ ! -d "$TUSTU_TEMP_PATH" ]; then
+    mkdir -p "$TUSTU_TEMP_PATH"
+    echo "The directory $TUSTU_TEMP_PATH has been created."
   else
-    echo "The directory ../$TUSTU_TEMP_PATH exists."
+    echo "The directory $TUSTU_TEMP_PATH exists."
   fi
 
   if [ -z "$INDEX" ]
@@ -41,7 +42,7 @@ DEFAULT_DIR="$PWD" singularity exec --nv $TUSTU_PROJECT_NAME-image_latest.sif ba
     echo "Creating new index 0..."
     INDEX=0
   fi
-  mkdir "../$TUSTU_TEMP_PATH/$INDEX"
+  mkdir -p "$TUSTU_TEMP_PATH/$INDEX"
 
   echo "Copying files..."
   {
@@ -49,10 +50,10 @@ DEFAULT_DIR="$PWD" singularity exec --nv $TUSTU_PROJECT_NAME-image_latest.sif ba
     echo ".dvc/config.local";
     echo ".git";
   } | while read file; do
-    cp -r --parents "$file" "../$TUSTU_TEMP_PATH/$INDEX/"
+    cp -r --parents "$file" "$TUSTU_TEMP_PATH/$INDEX/"
   done
 
-  cd ../$TUSTU_TEMP_PATH/$INDEX
+  cd $TUSTU_TEMP_PATH/$INDEX
 
   echo "Setting DVC cache directory..."
   dvc cache dir $DEFAULT_DIR/.dvc/cache
