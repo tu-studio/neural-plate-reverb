@@ -31,9 +31,6 @@ if __name__ == "__main__":
         'train.latent_dim': [128, 64, 32],
         'train.kernel_size': [13, 16, 20],
         'train.n_epochs': [500, 1000, 1500],
-        'train.n_blocks': [2, 3, 4],
-        'train.n_channels': [16, 32, 64],
-        'train.lr': [0.00001, 0.0001, 0.001]
     }
 
     # Generate all combinations of parameters
